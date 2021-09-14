@@ -391,7 +391,10 @@ class LocalStoreOptions:
 
     store_dir: str = os.path.join(get_pants_cachedir(), "lmdb_store")
     processes_max_size_bytes: int = 16 * GIGABYTES
-    files_max_size_bytes: int = 256 * GIGABYTES
+    if platform.machine() != "aarch64":
+        files_max_size_bytes: int = 256* GIGABYTES
+    else:
+        files_max_size_bytes: int = 128 * GIGABYTES
     directories_max_size_bytes: int = 16 * GIGABYTES
     shard_count: int = 16
 
