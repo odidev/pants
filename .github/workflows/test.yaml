@@ -366,6 +366,58 @@ jobs:
       name: Deploy to S3
       run: ./build-support/bin/deploy_to_s3.py
     timeout-minutes: 65
+
+  build_wheels_aarch64:
+    name: Build aarch64 wheels and fs_util (Linux)
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        pyver: [cp37-cp37m, cp38-cp38, cp39-cp39]
+    env:
+      PANTS_REMOTE_CACHE_READ: 'false'
+      PANTS_REMOTE_CACHE_WRITE: 'false'
+      img: quay.io/pypa/manylinux2014_aarch64
+    if: ${{ github.repository_owner == 'pantsbuild' }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 10
+    - name: Set up QEMU
+      id: qemu
+      uses: docker/setup-qemu-action@v1
+    - name: Install dependencies
+      run: |
+            docker run --rm -v ${{ github.workspace }}:/ws:rw --workdir=/ws \
+            ${{ env.img }} \
+            bash -exc 'curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -v -y --default-toolchain none && \
+            export PATH=$HOME/.cargo/bin:${PATH} && \
+            rustup --version && \
+            export MODE=debug && \
+            if \[ ${{ matrix.pyver }} == cp37-cp37m \] ; then
+              ./build-support/bin/release.sh build-wheels
+            elif \[ ${{ matrix.pyver }} == cp38-cp38 \] ; then
+              export USE_PY38=true;
+              ./build-support/bin/release.sh build-wheels;
+            else
+              export USE_PY39=true;
+              ./build-support/bin/release.sh build-wheels;
+            fi && \
+            ./build-support/bin/release.sh build-fs-util'
+    - if: always()
+      name: Upload pants.log
+      uses: actions/upload-artifact@v2
+      with:
+        name: pants-log-wheels-linux
+        path: .pants.d/pants.log
+    - env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      if: github.event_name == 'push'
+      name: Deploy to S3
+      run: ./build-support/bin/deploy_to_s3.py
+
   build_wheels_macos:
     env:
       PANTS_REMOTE_CACHE_READ: 'false'
